@@ -10,7 +10,8 @@
     "export:android": "expo export --platform android --output-dir dist-android",
     "export:web": "expo export --platform web --output-dir dist-web",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"mobile logic is covered by shared package tests\""
+    "test": "echo \"mobile logic is covered by shared package tests\"",
+    "eas-build-post-install": "cd ../.. && pnpm build:packages"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

@@ -5,7 +5,8 @@ import { PrismaClient } from '../generated/prisma/client.js';
 export function connect(): PrismaClient {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+  // Generous transaction limits: a fresh TLS connection to a distant hosted database can take seconds.
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }), transactionOptions: { maxWait: 15_000, timeout: 30_000 } });
 }
 
 export async function run(main: (db: PrismaClient) => Promise<void>): Promise<void> {
