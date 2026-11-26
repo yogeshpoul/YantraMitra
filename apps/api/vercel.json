@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "cd ../.. && NODE_ENV=development pnpm install --frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm build:packages && pnpm --filter @yantramitra/api build",
+  "buildCommand": "cd ../.. && pnpm build:packages && pnpm --filter @yantramitra/api build:serverless",
   "outputDirectory": "public",
   "regions": ["bom1"],
   "functions": {

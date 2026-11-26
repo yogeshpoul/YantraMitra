@@ -95,6 +95,9 @@ importers:
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
+      swagger-ui-dist:
+        specifier: 5.34.1
+        version: 5.34.1
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -120,6 +123,9 @@ importers:
       '@yantramitra/config':
         specifier: workspace:*
         version: link:../../packages/config
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
       supertest:
         specifier: ^7.3.2
         version: 7.3.2
