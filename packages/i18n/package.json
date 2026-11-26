@@ -1,0 +1,17 @@
+{
+  "name": "@yantramitra/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./locales/*.json": "./locales/*.json",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "echo no-ts"
+  },
+  "files": [
+    "locales"
+  ]
+}

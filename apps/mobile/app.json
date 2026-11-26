@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "YantraMitra",
+    "slug": "yantramitra",
+    "scheme": "yantramitra",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "android": {
+      "package": "in.yantramitra.app",
+      "adaptiveIcon": { "backgroundColor": "#2f7d3b" },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      "blockedPermissions": ["ACCESS_BACKGROUND_LOCATION"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      ["expo-location", { "locationWhenInUsePermission": "YantraMitra uses your location only when you tap 'Use my location' to find nearby equipment or set where your equipment is." }]
+    ],
+    "experiments": { "typedRoutes": false }
+  }
+}

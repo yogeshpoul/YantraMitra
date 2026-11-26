@@ -1,0 +1,54 @@
+# Local development:   docker compose up -d db        (PostgreSQL 16 + PostGIS on localhost:5433)
+# Whole stack:         JWT_SECRET=... INTERNAL_API_KEY=... docker compose --profile full up --build
+# The whole-stack profile is for trying the production images locally; see docs/DEPLOYMENT.md for production.
+name: yantramitra
+
+services:
+  db:
+    image: postgis/postgis:16-3.5
+    environment:
+      POSTGRES_USER: yantramitra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yantramitra}
+      POSTGRES_DB: yantramitra
+    ports: ["127.0.0.1:5433:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infrastructure/database/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yantramitra -d yantramitra"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    profiles: [full]
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://yantramitra:${POSTGRES_PASSWORD:-yantramitra}@db:5432/yantramitra
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (at least 32 characters)}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY}
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY_HOPS: "1"
+      SWAGGER_ENABLED: "true"
+      RUN_MIGRATIONS: "true"
+    ports: ["127.0.0.1:4000:4000"]
+
+  web:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        API_INTERNAL_URL: http://api:4000
+        NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    depends_on: [api]
+    environment:
+      API_INTERNAL_URL: http://api:4000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY}
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    ports: ["127.0.0.1:3000:3000"]
+
+volumes:
+  pgdata:

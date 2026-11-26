@@ -1,0 +1,32 @@
+{
+  "name": "yantramitra",
+  "private": true,
+  "packageManager": "pnpm@9.10.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build:packages": "pnpm -r --workspace-concurrency=1 --filter \"./packages/*\" run build",
+    "build": "pnpm build:packages && pnpm --filter @yantramitra/api build && pnpm --filter @yantramitra/web build",
+    "dev:api": "pnpm --filter @yantramitra/api dev",
+    "dev:web": "pnpm --filter @yantramitra/web dev",
+    "dev:mobile": "pnpm --filter @yantramitra/mobile start",
+    "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
+    "lint": "eslint . --max-warnings=0",
+    "test": "pnpm -r --workspace-concurrency=1 run test",
+    "test:e2e": "pnpm --filter @yantramitra/web test:e2e",
+    "db:migrate": "pnpm --filter @yantramitra/api db:migrate",
+    "db:seed": "pnpm --filter @yantramitra/api db:seed",
+    "i18n:check": "pnpm --filter @yantramitra/i18n test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^22.19.0",
+    "eslint": "^10.15.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "globals": "^17.0.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.74.0",
+    "vitest": "^5.1.2"
+  }
+}

@@ -1,0 +1,447 @@
+// geography columns are `Unsupported`; they are read and written through raw SQL (src/common/geo.ts).
+// Checks, partial indexes, trigram and GiST indexes live in the hand-written part of the migrations.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Locale {
+  mr
+  hi
+  en
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+enum ListingStatus {
+  active
+  inactive
+  unavailable
+  suspended
+  deleted
+}
+
+enum PricingType {
+  hourly
+  per_acre
+  per_day
+  fixed
+  contact_for_price
+}
+
+enum FuelTerm {
+  included
+  excluded
+  negotiated
+  not_applicable
+}
+
+enum OperatorTerm {
+  included
+  extra_cost
+  equipment_only
+  not_applicable
+}
+
+enum TransportTerm {
+  included
+  extra_cost
+  negotiated
+  not_applicable
+}
+
+enum LocationVisibility {
+  exact
+  approximate
+  locality_only
+  hidden
+}
+
+enum LocationSource {
+  gps
+  map
+  search
+  manual
+}
+
+enum ReportReason {
+  fake
+  wrong_information
+  not_available
+  duplicate
+  offensive
+  other
+}
+
+enum ReportStatus {
+  open
+  reviewing
+  resolved
+  dismissed
+}
+
+enum ContactEventType {
+  reveal
+  call_click
+  whatsapp_click
+}
+
+enum ClientType {
+  web
+  native
+}
+
+enum PlaceKind {
+  village
+  town
+  city
+  taluka
+  district
+  state
+  postal
+}
+
+model User {
+  id                    String     @id @default(uuid()) @db.Uuid
+  fullName              String     @map("full_name")
+  mobile                String     @unique
+  passwordHash          String     @map("password_hash")
+  preferredLocale       Locale     @default(mr) @map("preferred_locale")
+  status                UserStatus @default(active)
+  mustChangePassword    Boolean    @default(false) @map("must_change_password")
+  tempPasswordExpiresAt DateTime?  @map("temp_password_expires_at") @db.Timestamptz(3)
+  passwordChangedAt     DateTime   @default(now()) @map("password_changed_at") @db.Timestamptz(3)
+  /// Reserved for future OTP verification. Always null in the MVP.
+  phoneVerifiedAt       DateTime?  @map("phone_verified_at") @db.Timestamptz(3)
+  lastLoginAt           DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt             DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt             DateTime?  @map("deleted_at") @db.Timestamptz(3)
+
+  sessions        Session[]
+  listings        EquipmentListing[]
+  favorites       UserFavorite[]
+  reports         ListingReport[]
+  contactEvents   ContactEvent[]
+  locationChanges LocationHistory[]
+  admin           AdminUser?
+
+  @@index([status, createdAt])
+  @@map("users")
+}
+
+model Session {
+  id                  String     @id @default(uuid()) @db.Uuid
+  userId              String     @map("user_id") @db.Uuid
+  clientType          ClientType @map("client_type")
+  refreshHash         String     @map("refresh_hash")
+  previousRefreshHash String?    @map("previous_refresh_hash")
+  rotatedAt           DateTime   @default(now()) @map("rotated_at") @db.Timestamptz(3)
+  userAgent           String?    @map("user_agent")
+  expiresAt           DateTime   @map("expires_at") @db.Timestamptz(3)
+  revokedAt           DateTime?  @map("revoked_at") @db.Timestamptz(3)
+  revokedReason       String?    @map("revoked_reason")
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model LoginThrottle {
+  key             String    @id
+  failures        Int       @default(0)
+  windowStartedAt DateTime  @default(now()) @map("window_started_at") @db.Timestamptz(3)
+  lockedUntil     DateTime? @map("locked_until") @db.Timestamptz(3)
+
+  @@map("login_throttles")
+}
+
+model EquipmentCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  nameEn    String   @map("name_en")
+  nameMr    String   @map("name_mr")
+  nameHi    String   @map("name_hi")
+  iconKey   String   @map("icon_key")
+  sortOrder Int      @default(100) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  types    EquipmentType[]
+  listings EquipmentListing[]
+
+  @@map("equipment_categories")
+}
+
+model EquipmentType {
+  id         String   @id @default(uuid()) @db.Uuid
+  categoryId String   @map("category_id") @db.Uuid
+  slug       String   @unique
+  nameEn     String   @map("name_en")
+  nameMr     String   @map("name_mr")
+  nameHi     String   @map("name_hi")
+  iconKey    String?  @map("icon_key")
+  sortOrder  Int      @default(100) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  category EquipmentCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  listings EquipmentListing[]
+
+  @@unique([id, categoryId])
+  @@index([categoryId, sortOrder])
+  @@map("equipment_types")
+}
+
+model Operation {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  nameEn    String   @map("name_en")
+  nameMr    String   @map("name_mr")
+  nameHi    String   @map("name_hi")
+  sortOrder Int      @default(100) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  listings ListingOperation[]
+
+  @@map("operations")
+}
+
+model EquipmentListing {
+  id                String  @id @default(uuid()) @db.Uuid
+  ownerId           String  @map("owner_id") @db.Uuid
+  categoryId        String  @map("category_id") @db.Uuid
+  equipmentTypeId   String  @map("equipment_type_id") @db.Uuid
+  title             String
+  manufacturer      String?
+  model             String?
+  manufacturingYear Int?    @map("manufacturing_year")
+  description       String?
+
+  pricingType          PricingType   @map("pricing_type")
+  price                Decimal?      @db.Decimal(12, 2)
+  currency             String        @default("INR") @db.Char(3)
+  isNegotiable         Boolean       @default(false) @map("is_negotiable")
+  minHours             Decimal?      @map("min_hours") @db.Decimal(6, 2)
+  minAcres             Decimal?      @map("min_acres") @db.Decimal(6, 2)
+  fuelTerm             FuelTerm      @map("fuel_term")
+  operatorTerm         OperatorTerm  @map("operator_term")
+  transportTerm        TransportTerm @map("transport_term")
+  additionalConditions String?       @map("additional_conditions")
+
+  homeLocation   Unsupported("geography(Point, 4326)") @map("home_location")
+  homeLabel      String                                @map("home_label")
+  homeVisibility LocationVisibility                    @default(hidden) @map("home_visibility")
+  homePlaceId    String?                               @map("home_place_id") @db.Uuid
+
+  currentLocation          Unsupported("geography(Point, 4326)") @map("current_location")
+  /// Public projection of current_location. The only column used by public search.
+  searchLocation           Unsupported("geography(Point, 4326)") @map("search_location")
+  currentLabel             String                                @map("current_label")
+  currentVisibility        LocationVisibility                    @default(approximate) @map("current_visibility")
+  currentPlaceId           String?                               @map("current_place_id") @db.Uuid
+  currentLocality          String?                               @map("current_locality")
+  currentTaluka            String?                               @map("current_taluka")
+  currentDistrict          String?                               @map("current_district")
+  currentState             String?                               @map("current_state")
+  currentCountryCode       String?                               @map("current_country_code") @db.Char(2)
+  currentLocationUpdatedAt DateTime                              @default(now()) @map("current_location_updated_at") @db.Timestamptz(3)
+
+  contactEnabled  Boolean       @default(true) @map("contact_enabled")
+  allowWhatsapp   Boolean       @default(true) @map("allow_whatsapp")
+  status          ListingStatus @default(active)
+  suspendedReason String?       @map("suspended_reason")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(3)
+
+  owner         User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  category      EquipmentCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  type          EquipmentType      @relation(fields: [equipmentTypeId, categoryId], references: [id, categoryId], onDelete: Restrict)
+  homePlace     Place?             @relation("home", fields: [homePlaceId], references: [id], onDelete: SetNull)
+  currentPlace  Place?             @relation("current", fields: [currentPlaceId], references: [id], onDelete: SetNull)
+  operations    ListingOperation[]
+  history       LocationHistory[]
+  favorites     UserFavorite[]
+  reports       ListingReport[]
+  contactEvents ContactEvent[]
+  images        EquipmentImage[]
+
+  @@index([ownerId, status])
+  @@index([status, categoryId])
+  @@index([status, equipmentTypeId])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([status, currentLocationUpdatedAt(sort: Desc)])
+  @@index([status, currentState, currentDistrict])
+  @@map("equipment_listings")
+}
+
+/// Reserved for future image support. Not used in the MVP.
+model EquipmentImage {
+  id         String   @id @default(uuid()) @db.Uuid
+  listingId  String   @map("listing_id") @db.Uuid
+  storageKey String   @map("storage_key")
+  altText    String?  @map("alt_text")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  listing EquipmentListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, sortOrder])
+  @@map("equipment_images")
+}
+
+model ListingOperation {
+  listingId   String @map("listing_id") @db.Uuid
+  operationId String @map("operation_id") @db.Uuid
+
+  listing   EquipmentListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  operation Operation        @relation(fields: [operationId], references: [id], onDelete: Restrict)
+
+  @@id([listingId, operationId])
+  @@index([operationId])
+  @@map("listing_operations")
+}
+
+model LocationHistory {
+  id          String                                @id @default(uuid()) @db.Uuid
+  listingId   String                                @map("listing_id") @db.Uuid
+  location    Unsupported("geography(Point, 4326)")
+  label       String
+  source      LocationSource
+  changedById String                                @map("changed_by_id") @db.Uuid
+  createdAt   DateTime                              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  listing   EquipmentListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  changedBy User             @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([listingId, createdAt(sort: Desc)])
+  @@map("location_history")
+}
+
+model UserFavorite {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  listingId String   @map("listing_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing EquipmentListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  @@index([listingId])
+  @@map("user_favorites")
+}
+
+model ListingReport {
+  id             String       @id @default(uuid()) @db.Uuid
+  listingId      String       @map("listing_id") @db.Uuid
+  reporterId     String       @map("reporter_id") @db.Uuid
+  reason         ReportReason
+  details        String?
+  status         ReportStatus @default(open)
+  resolutionNote String?      @map("resolution_note")
+  resolvedById   String?      @map("resolved_by_id") @db.Uuid
+  resolvedAt     DateTime?    @map("resolved_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  listing    EquipmentListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reporter   User             @relation(fields: [reporterId], references: [id], onDelete: Restrict)
+  resolvedBy AdminUser?       @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([listingId])
+  @@map("listing_reports")
+}
+
+model ContactEvent {
+  id        String           @id @default(uuid()) @db.Uuid
+  listingId String           @map("listing_id") @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      ContactEventType
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  listing EquipmentListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, createdAt])
+  @@index([listingId, createdAt])
+  @@map("contact_events")
+}
+
+model AdminUser {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  logs    AdminAuditLog[]
+  reports ListingReport[]
+
+  @@map("admin_users")
+}
+
+model AdminAuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  adminId    String   @map("admin_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id") @db.Uuid
+  before     Json?
+  after      Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@map("admin_audit_logs")
+}
+
+/// Gazetteer. Populated by `places:import`; never referenced by name in code.
+model Place {
+  id          String                                @id @default(uuid()) @db.Uuid
+  source      String
+  sourceId    String                                @map("source_id")
+  slug        String                                @unique
+  name        String
+  kind        PlaceKind
+  taluka      String?
+  district    String?
+  state       String?
+  countryCode String                                @map("country_code") @db.Char(2)
+  postalCode  String?                               @map("postal_code")
+  point       Unsupported("geography(Point, 4326)")
+  population  Int                                   @default(0)
+  /// Ranking weight for search and for choosing indexable locality pages
+  importance  Float                                 @default(0)
+  searchText  String                                @map("search_text")
+
+  homeListings    EquipmentListing[] @relation("home")
+  currentListings EquipmentListing[] @relation("current")
+
+  @@unique([source, sourceId])
+  @@index([postalCode])
+  @@index([name])
+  @@map("places")
+}
