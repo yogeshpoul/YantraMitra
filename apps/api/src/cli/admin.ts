@@ -27,6 +27,7 @@ void run(async (db) => {
       const fullName = process.env.ADMIN_NAME?.trim();
       const password = process.env.ADMIN_PASSWORD ?? '';
       if (!fullName) throw new Error('ADMIN_NAME is required');
+      if (!password) throw new Error('ADMIN_PASSWORD is not set in this terminal');
       if (!newPasswordSchema.safeParse(password).success || password.length < 12)
         throw new Error('ADMIN_PASSWORD must be at least 12 characters and not a common password');
       const passwordHash = await hash(password, { memoryCost: 19_456, timeCost: 2, parallelism: 1 });
