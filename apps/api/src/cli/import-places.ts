@@ -4,6 +4,7 @@
  *
  *   pnpm --filter @yantramitra/api places:import IN
  *   pnpm --filter @yantramitra/api places:import IN --places ./IN.zip --postal ./IN-postal.zip
+ *   pnpm --filter @yantramitra/api places:import IN --states "Maharashtra,Karnataka"   (smaller databases)
  *
  * Files are downloaded from download.geonames.org when paths are not given. Re-running updates rows in place.
  */
@@ -132,7 +133,10 @@ void run(async (db) => {
   const postal = option('--no-postal') !== undefined || args.includes('--no-postal')
     ? []
     : parsePostal(await load(option('--postal'), `https://download.geonames.org/export/zip/${country}.zip`));
-  const all = [...places, ...postal];
+  // Optional: only some states, for databases with little storage (all of India takes about 600 MB).
+  const states = option('--states')?.split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
+  const all = [...places, ...postal].filter((p) => !states || (p.state !== null && states.includes(p.state.toLowerCase())));
+  if (states && all.length === 0) throw new Error(`No places matched --states ${states.join(',')}`);
 
   // Most important place keeps the plain slug; others get a district suffix, then an id suffix.
   const existing = new Map(
@@ -172,5 +176,5 @@ void run(async (db) => {
     FROM places p WHERE p.id = l.current_place_id`;
   await db.$executeRaw`ANALYZE places`;
   console.log(`Refreshed area names on ${refreshed} listings.`);
-  console.log(`Imported ${places.length} places and ${postal.length} PIN codes for ${country}. Data © GeoNames, CC BY 4.0.`);
+  console.log(`Imported ${all.length} places and PIN codes for ${country}${states ? ` (${states.join(', ')})` : ''}. Data © GeoNames, CC BY 4.0.`);
 });
